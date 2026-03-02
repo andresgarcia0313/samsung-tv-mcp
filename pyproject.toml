@@ -1,0 +1,13 @@
+[project]
+name = "samsung-tv-mcp"
+version = "1.0.0"
+description = "MCP server for Samsung Smart TV control via local network"
+requires-python = ">=3.10"
+dependencies = [
+    "samsungtvws[encrypted]>=2.7.0",
+    "mcp[cli]>=1.0.0",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
