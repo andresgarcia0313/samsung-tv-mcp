@@ -7,11 +7,14 @@ import logging
 import socket
 import time
 import xml.etree.ElementTree as ET
+from concurrent.futures import ThreadPoolExecutor, TimeoutError as FuturesTimeout
 from pathlib import Path
 from typing import Any
 from urllib.parse import urlparse
 from urllib.request import Request, urlopen
 from urllib.error import URLError
+
+WS_TIMEOUT = 8  # seconds — max wait for any WebSocket operation
 
 from samsungtvws import SamsungTVWS
 
@@ -202,14 +205,16 @@ class SamsungTV:
         ip = self._ensure_ip()
         try:
             self._ws = SamsungTVWS(
-                host=ip, port=8002, token_file=TOKEN_FILE, name="ClaudeCode"
+                host=ip, port=8002, token_file=TOKEN_FILE,
+                timeout=WS_TIMEOUT, name="ClaudeCode",
             )
             self._ws.open()
             log.info("Connected via WSS:8002")
         except Exception:
             log.warning("WSS:8002 failed, trying WS:8001")
             self._ws = SamsungTVWS(
-                host=ip, port=8001, token_file=TOKEN_FILE, name="ClaudeCode"
+                host=ip, port=8001, token_file=TOKEN_FILE,
+                timeout=WS_TIMEOUT, name="ClaudeCode",
             )
             self._ws.open()
         return self._ws
@@ -218,12 +223,21 @@ class SamsungTV:
         self._ws = None
         return self._ensure_ws()
 
-    def _send_ws(self, method: str, **kwargs: Any) -> Any:
-        """Send WebSocket command with auto-reconnect."""
+    def _send_ws(self, method: str, timeout: float = WS_TIMEOUT, **kwargs: Any) -> Any:
+        """Send WebSocket command with auto-reconnect and timeout."""
         ws = self._ensure_ws()
         for attempt in range(2):
             try:
-                return getattr(ws, method)(**kwargs)
+                with ThreadPoolExecutor(max_workers=1) as pool:
+                    future = pool.submit(getattr(ws, method), **kwargs)
+                    return future.result(timeout=timeout)
+            except FuturesTimeout:
+                log.error("WS %s timed out after %ss", method, timeout)
+                self._ws = None
+                raise TimeoutError(
+                    f"TV did not respond to '{method}' within {timeout}s. "
+                    "TV may be unresponsive or in a state that doesn't support this command."
+                )
             except Exception as e:
                 if attempt == 0:
                     log.warning("WS error (%s), reconnecting...", e)
@@ -376,11 +390,39 @@ class SamsungTV:
         return name_or_id
 
     def list_apps(self) -> list[dict[str, Any]]:
+        import signal
+
+        def _timeout_handler(signum, frame):
+            raise TimeoutError("app_list timeout")
+
+        from samsungtvws.remote import ChannelEmitCommand
+        from samsungtvws.helper import process_api_response
+        from samsungtvws.event import ED_INSTALLED_APP_EVENT, parse_installed_app
+
         ws = self._ensure_ws()
-        raw = ws.app_list()
-        if not raw:
-            return []
-        return [{"id": a.get("appId"), "name": a.get("name", "Unknown")} for a in raw]
+        assert ws.connection
+
+        old_handler = signal.signal(signal.SIGALRM, _timeout_handler)
+        signal.alarm(WS_TIMEOUT)
+        try:
+            ws._ws_send(ChannelEmitCommand.get_installed_app())
+            response = process_api_response(ws.connection.recv())
+            signal.alarm(0)
+            if response.get("event") == ED_INSTALLED_APP_EVENT:
+                raw = parse_installed_app(response)
+                return [{"id": a.get("appId"), "name": a.get("name", "Unknown")} for a in (raw or [])]
+            return self._known_apps_fallback()
+        except (TimeoutError, Exception) as e:
+            signal.alarm(0)
+            self._ws = None
+            log.warning("list_apps from TV failed (%s), using known aliases", e)
+            return self._known_apps_fallback()
+        finally:
+            signal.signal(signal.SIGALRM, old_handler)
+
+    @staticmethod
+    def _known_apps_fallback() -> list[dict[str, Any]]:
+        return [{"id": ids[0], "name": name.title()} for name, ids in APP_ALIASES.items()]
 
     def launch_app(
         self, name_or_id: str, meta_tag: str | None = None
