@@ -107,7 +107,8 @@ async def tv_key(key: str, times: int = 1) -> dict[str, Any]:
     def _do():
         _tv.send_key(key, times)
         return _ok(f"Sent {key} x{times}")
-    return await _safe(_do)
+    t = max(TOOL_TIMEOUT, times * 0.3 + 5)
+    return await _safe(_do, timeout=t)
 
 
 @mcp.tool()
