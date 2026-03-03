@@ -233,7 +233,7 @@ class SamsungTV:
                 "volume": device.get("currentVolume"),
             }
         except (URLError, OSError):
-            return {"power": "off", "ip": ip, "message": "TV appears to be off"}
+            return {"power": "off", "ip": ip, "note": "TV appears to be off"}
 
     # ── Power ────────────────────────────────────────────────
 
