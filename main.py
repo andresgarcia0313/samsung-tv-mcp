@@ -250,6 +250,64 @@ async def tv_close_app(app: str) -> dict[str, Any]:
     return await _safe(_do)
 
 
+# ── Current App ─────────────────────────────────────────────
+
+
+@mcp.tool()
+async def tv_current_app() -> dict[str, Any]:
+    """Detect which app is currently running on the TV.
+
+    Checks all known apps via REST API. Returns the running app's
+    name, ID, and visibility, or a message if no known app is active.
+    """
+    def _do():
+        app = _tv.current_app()
+        if app:
+            return _ok(f"Running: {app['name']}", **app)
+        return _ok("No known app is currently running")
+    return await _safe(_do, timeout=40)
+
+
+# ── Aspect Ratio ────────────────────────────────────────────
+
+
+@mcp.tool()
+async def tv_aspect_ratio(ratio: Optional[str] = None) -> dict[str, Any]:
+    """Get or set the TV's aspect ratio.
+
+    Args:
+        ratio: Set to this value. Known values: "Default", "16:9", "Zoom",
+               "4:3", "Screen Fit". Omit to just read current ratio.
+    """
+    def _do():
+        if ratio:
+            _tv.set_aspect_ratio(ratio)
+            return _ok(f"Aspect ratio set to {ratio}", ratio=ratio)
+        current = _tv.get_aspect_ratio()
+        return _ok(f"Aspect ratio: {current}", ratio=current)
+    return await _safe(_do)
+
+
+# ── Captions ────────────────────────────────────────────────
+
+
+@mcp.tool()
+async def tv_captions(toggle: bool = False) -> dict[str, Any]:
+    """Get caption/subtitle state or toggle captions on/off.
+
+    Args:
+        toggle: If True, sends the CAPTION key to toggle subtitles.
+                If False (default), just returns current caption state.
+    """
+    def _do():
+        if toggle:
+            _tv.send_key("KEY_CAPTION")
+            return _ok("Caption toggled")
+        state = _tv.get_captions()
+        return _ok("Caption state", **state)
+    return await _safe(_do)
+
+
 # ── Browser & Text ───────────────────────────────────────────────
 
 

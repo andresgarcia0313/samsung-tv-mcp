@@ -430,6 +430,59 @@ class SamsungTV:
             raise ValueError(f"Unknown: '{action}'. Valid: play, pause, stop, seek, status")
         return {"action": a, "done": True}
 
+    # ── App Detection ────────────────────────────────────────
+
+    def current_app(self) -> dict[str, Any] | None:
+        """Detect which known app is currently running via REST."""
+        ip = self._ensure_ip()
+        for name, ids in APP_ALIASES.items():
+            try:
+                raw = urlopen(
+                    f"http://{ip}:8001/api/v2/applications/{ids[0]}",
+                    timeout=2,
+                ).read()
+                data = json.loads(raw)
+                if data.get("running"):
+                    return {
+                        "name": name,
+                        "id": ids[0],
+                        "visible": data.get("visible", False),
+                    }
+            except Exception:
+                continue
+        return None
+
+    # ── Aspect Ratio ──────────────────────────────────────────
+
+    def get_aspect_ratio(self) -> str:
+        ip = self._ensure_ip()
+        xml = _soap_call(
+            ip, "/upnp/control/RenderingControl1", "RenderingControl",
+            "X_GetAspectRatio", "<InstanceID>0</InstanceID>",
+        )
+        return _soap_value(xml, "AspectRatio") or "Unknown"
+
+    def set_aspect_ratio(self, ratio: str) -> None:
+        ip = self._ensure_ip()
+        _soap_call(
+            ip, "/upnp/control/RenderingControl1", "RenderingControl",
+            "X_SetAspectRatio",
+            f"<InstanceID>0</InstanceID><AspectRatio>{ratio}</AspectRatio>",
+        )
+
+    # ── Captions ──────────────────────────────────────────────
+
+    def get_captions(self) -> dict[str, str]:
+        ip = self._ensure_ip()
+        xml = _soap_call(
+            ip, "/upnp/control/RenderingControl1", "RenderingControl",
+            "X_GetCaptionState", "<InstanceID>0</InstanceID>",
+        )
+        return {
+            "captions": _soap_value(xml, "Captions") or "",
+            "enabled": _soap_value(xml, "EnabledCaptions") or "",
+        }
+
     def close(self) -> None:
         if self._ws:
             try:

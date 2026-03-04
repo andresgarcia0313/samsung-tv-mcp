@@ -6,7 +6,7 @@ A [Model Context Protocol](https://modelcontextprotocol.io/) server that lets AI
 
 ## Features
 
-- **15 tools** for complete TV control via natural language
+- **18 tools** for complete TV control via natural language
 - **Auto-discovery** — finds Samsung TVs on your network via SSDP
 - **Zero config** — no API keys, no cloud, everything runs locally
 - **Multi-protocol** — combines WebSocket, REST, UPnP/DLNA, and Wake-on-LAN
@@ -28,6 +28,9 @@ A [Model Context Protocol](https://modelcontextprotocol.io/) server that lets AI
 | `tv_apps` | List all installed apps |
 | `tv_launch` | Launch app by name ("netflix") or ID |
 | `tv_close_app` | Close a running app |
+| `tv_current_app` | Detect which app is currently running |
+| `tv_aspect_ratio` | Get/set aspect ratio (Default, 16:9, Zoom, 4:3) |
+| `tv_captions` | Get caption state or toggle subtitles |
 | `tv_browser` | Open a URL in the TV's browser |
 | `tv_text` | Type text into active input fields |
 | `tv_cursor` | Move virtual cursor on screen |
