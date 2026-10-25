@@ -14,6 +14,11 @@ from urllib.request import Request, urlopen
 from urllib.error import URLError
 
 from samsungtvws import SamsungTVWS
+from samsungtvws import connection as _ws_conn
+
+# Some TVs send touchDisable/touchEnable before ms.channel.connect; samsungtvws
+# treats any other startup event as a failure, so skip these too.
+_ws_conn.IGNORE_EVENTS_AT_STARTUP += ("ms.remote.touchDisable", "ms.remote.touchEnable")
 
 log = logging.getLogger("samsung-tv")
 
